@@ -1,0 +1,89 @@
+version: "3"
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: docker-new-frontend
+    command: serve -s build -l 3000
+    # ports:
+    #   - "3000:3000"
+    restart: unless-stopped
+    # stdin_open: true
+    # tty: true
+    # volumes:
+    #   - ./frontend/src:/usr/src/app/src
+    networks:
+      - docker-new-network
+
+  api:
+    build: ./api
+    container_name: docker-new-api
+    command: npm run start
+    restart: unless-stopped
+    # ports:
+    #   - "3001:3001"
+    environment:
+      - PORT=3001
+      - MONGO_URL=mongodb://api_db:27017/api
+      - AUTH_API_URL=http://auth:3002/api
+    depends_on:
+      - api_db
+    networks:
+      - docker-new-network
+
+  auth:
+    build: ./auth
+    container_name: docker-new-auth
+    command: npm run start
+    restart: unless-stopped
+    # ports:
+    #   - "3002:3002"
+    environment:
+      - PORT=3002
+      - MONGO_URL=mongodb://auth_db:27017/auth
+      - API_URL=http://api:3001/api
+    depends_on:
+      - auth_db
+    networks:
+      - docker-new-network
+
+  api_db:
+    container_name: docker-new-api-db
+    image: mongo:latest
+    volumes:
+      - mongodb_api:/data/db
+    networks:
+      - docker-new-network
+
+  auth_db:
+    container_name: docker-new-auth-db
+    image: mongo:latest
+    volumes:
+      - mongodb_auth:/data/db
+    networks:
+      - docker-new-network
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: docker-new-nginx
+    ports:
+      - "80:80"
+    volumes:
+      # ./nginx/nginx.conf/prod - create file with path, where copy :...
+      - ./nginx/nginx.conf.prod:/etc/nginx/conf.d/nginx.conf
+    depends_on:
+      - frontend
+      - auth
+      - api
+    networks:
+      - docker-new-network
+
+volumes:
+  mongodb_api:
+  mongodb_auth:
+
+networks:
+  docker-new-network:
+    driver: bridge
